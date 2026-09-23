@@ -63,7 +63,7 @@ Mutating `POST`s require `Idempotency-Key`. Replays of the same key on the same 
 
 Stdlib `unittest` against this observe stub. **real_gate stays false.** The suite does not call Entra or JSM and does not arm an Action plane.
 
-Lab ID hooks for Integrations — TBD (`tests/lab_fixtures.py`). Those placeholders are empty, and the lab case is skipped, so a run does not wait on lab credentials and does not claim `real_gate`.
+Entra lab ids (tenant, sensor client id, executor client id) are in `tests/lab_fixtures.py`. No client secrets. JSM site and project are still unset, `REAL_GATE` / `real_gate` stay false, and `test_lab_ids_do_not_arm_real_gate` stays skipped until JSM lab ids exist. A run does not call Entra or JSM and does not claim `real_gate`.
 
 From this directory:
 
@@ -87,6 +87,6 @@ PYTHONPATH=packages/case-api/src python3 -m unittest discover -s packages/case-a
 | `src/case_api/server.py` | HTTP stub |
 | `src/case_api/__main__.py` | `python -m case_api` |
 | `tests/test_contract.py` | Observe-stub contract tests (`real_gate` false) |
-| `tests/lab_fixtures.py` | Integrations lab ID placeholders (TBD, not real_gate) |
+| `tests/lab_fixtures.py` | Entra lab ids only (no secrets); JSM unset; `real_gate` false |
 
 Paths: `/healthz`, `/v1/tenants/{tenant_id}/action-requests`, `GET` case, `POST` release, `GET` ledger.

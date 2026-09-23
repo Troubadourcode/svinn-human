@@ -16,9 +16,9 @@ until killed). Stdlib only.
 **real_gate is false.** These tests do not import ``sandbox.*``, do not
 call Entra or JSM, and do not arm an Action plane.
 
-Lab ID hooks for Integrations — TBD. See ``lab_fixtures.py``. The lab
-case stays skipped until those placeholders are filled, so CI does not
-wait on a lab and does not claim ``real_gate``.
+Entra lab ids live in ``lab_fixtures.py`` (no secrets). JSM site and
+project are still unset, so ``test_lab_ids_do_not_arm_real_gate`` stays
+skipped. CI does not wait on a lab and does not claim ``real_gate``.
 """
 
 from __future__ import annotations
@@ -294,17 +294,46 @@ class CaseApiContractTest(unittest.TestCase):
         self.assertEqual(fetched["state"], RECEIVED)
         self.assertNotEqual(fetched["state"], ACTION_PENDING)
 
+    def test_sensor_client_id_differs_from_executor(self):
+        """Entra app ids are split. Recording them does not arm real_gate."""
+        lab_fixtures.assert_sensor_executor_client_ids_differ()
+        self.assertNotEqual(
+            lab_fixtures.SENSOR_APP_CLIENT_ID,
+            lab_fixtures.EXECUTOR_APP_CLIENT_ID,
+        )
+        self.assertTrue(lab_fixtures.SENSOR_APP_CLIENT_ID.strip())
+        self.assertTrue(lab_fixtures.EXECUTOR_APP_CLIENT_ID.strip())
+        self.assertIs(lab_fixtures.REAL_GATE, False)
+        self.assertIs(lab_fixtures.real_gate, False)
+        self.assertIn("jsm_pending", lab_fixtures.REAL_GATE_BLOCKS)
+        self.assertIn("R6_foreign_graph_must_close", lab_fixtures.REAL_GATE_BLOCKS)
+        self.assertIsNone(lab_fixtures.JSM_SITE)
+        self.assertIsNone(lab_fixtures.JSM_PROJECT_KEY)
+        self.assertFalse(lab_fixtures.lab_ids_configured())
+        status, body = self._request("GET", "/healthz")
+        self.assertEqual(status, 200)
+        self.assertIs(body["real_gate"], False)
+
     @unittest.skipUnless(
         lab_fixtures.lab_ids_configured(),
-        "lab ID hooks for Integrations — TBD; not real_gate; "
-        "skipped until lab_fixtures.py is filled (do not fail CI)",
+        "Entra lab ids are recorded; JSM lab ids are still unset; "
+        "not real_gate; skipped until lab_fixtures.py is fully filled "
+        "(do not fail CI)",
     )
     def test_lab_ids_do_not_arm_real_gate(self):
         """Future Integrations hook. Must not call Entra or JSM.
 
-        Lab marker: skipped unless ``lab_fixtures`` is filled. Same intent
-        as a future ``pytest.mark.lab`` — this repo has no pytest.
+        Lab marker: skipped unless ``lab_fixtures`` is fully filled,
+        including JSM. Same intent as a future ``pytest.mark.lab`` —
+        this repo has no pytest. Entra ids alone must not unskip it.
         """
+        lab_fixtures.assert_sensor_executor_client_ids_differ()
+        self.assertNotEqual(
+            lab_fixtures.SENSOR_APP_CLIENT_ID,
+            lab_fixtures.EXECUTOR_APP_CLIENT_ID,
+        )
+        self.assertIs(lab_fixtures.REAL_GATE, False)
+        self.assertIs(lab_fixtures.real_gate, False)
         self.assertTrue(lab_fixtures.ENTRA_LAB_TENANT_ID.strip())
         self.assertTrue(lab_fixtures.JSM_LAB_PROJECT_KEY.strip())
         self.assertTrue(lab_fixtures.JSM_LAB_ISSUE_KEY.strip())
