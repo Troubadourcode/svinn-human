@@ -16,9 +16,11 @@ until killed). Stdlib only.
 **real_gate is false.** These tests do not import ``sandbox.*``, do not
 call Entra or JSM, and do not arm an Action plane.
 
-Entra lab ids live in ``lab_fixtures.py`` (no secrets). JSM site and
-project are still unset, so ``test_lab_ids_do_not_arm_real_gate`` stays
-skipped. CI does not wait on a lab and does not claim ``real_gate``.
+Entra lab ids live in ``lab_fixtures.py`` (no secrets). Identity is the
+tenant plus the sensor and executor client ids; the legacy blank
+``ENTRA_LAB_CLIENT_ID`` is not required. JSM site and project are still
+unset, so ``test_lab_ids_do_not_arm_real_gate`` stays skipped. CI does
+not wait on a lab and does not claim ``real_gate``.
 """
 
 from __future__ import annotations
@@ -309,6 +311,15 @@ class CaseApiContractTest(unittest.TestCase):
         self.assertIn("R6_foreign_graph_must_close", lab_fixtures.REAL_GATE_BLOCKS)
         self.assertIsNone(lab_fixtures.JSM_SITE)
         self.assertIsNone(lab_fixtures.JSM_PROJECT_KEY)
+        self.assertFalse(lab_fixtures.WEBHOOK_REGISTERED)
+        self.assertFalse(lab_fixtures.TRANSITION_IDS_FILLED)
+        # Legacy single-client field stays blank. It is not why the lab
+        # case is skipped; JSM hooks are. Sensor and executor client ids
+        # are the Entra identity fields lab_ids_configured() requires.
+        self.assertEqual(lab_fixtures.ENTRA_LAB_CLIENT_ID, "")
+        self.assertIn("SENSOR_APP_CLIENT_ID", lab_fixtures.LAB_IDS_REQUIRED)
+        self.assertIn("EXECUTOR_APP_CLIENT_ID", lab_fixtures.LAB_IDS_REQUIRED)
+        self.assertNotIn("ENTRA_LAB_CLIENT_ID", lab_fixtures.LAB_IDS_REQUIRED)
         self.assertFalse(lab_fixtures.lab_ids_configured())
         status, body = self._request("GET", "/healthz")
         self.assertEqual(status, 200)
@@ -316,8 +327,9 @@ class CaseApiContractTest(unittest.TestCase):
 
     @unittest.skipUnless(
         lab_fixtures.lab_ids_configured(),
-        "Entra lab ids are recorded; JSM lab ids are still unset; "
-        "not real_gate; skipped until lab_fixtures.py is fully filled "
+        "Entra identity is tenant + sensor + executor client ids; "
+        "legacy ENTRA_LAB_CLIENT_ID stays blank; JSM lab ids are still "
+        "unset; not real_gate; skipped until JSM hooks are filled "
         "(do not fail CI)",
     )
     def test_lab_ids_do_not_arm_real_gate(self):
@@ -326,12 +338,18 @@ class CaseApiContractTest(unittest.TestCase):
         Lab marker: skipped unless ``lab_fixtures`` is fully filled,
         including JSM. Same intent as a future ``pytest.mark.lab`` —
         this repo has no pytest. Entra ids alone must not unskip it.
+        A filled JSM handoff must be able to unskip it while
+        ``ENTRA_LAB_CLIENT_ID`` stays blank: sensor and executor client
+        ids are the Entra identity fields.
         """
         lab_fixtures.assert_sensor_executor_client_ids_differ()
         self.assertNotEqual(
             lab_fixtures.SENSOR_APP_CLIENT_ID,
             lab_fixtures.EXECUTOR_APP_CLIENT_ID,
         )
+        self.assertTrue(lab_fixtures.SENSOR_APP_CLIENT_ID.strip())
+        self.assertTrue(lab_fixtures.EXECUTOR_APP_CLIENT_ID.strip())
+        self.assertEqual(lab_fixtures.ENTRA_LAB_CLIENT_ID, "")
         self.assertIs(lab_fixtures.REAL_GATE, False)
         self.assertIs(lab_fixtures.real_gate, False)
         self.assertTrue(lab_fixtures.ENTRA_LAB_TENANT_ID.strip())
