@@ -28,10 +28,10 @@ Stdlib only (Python 3.10+). No install step and no `sandbox.runtime` dependency.
 From the repo root:
 
 ```bash
-PYTHONPATH=packages/case-api/src python -m case_api
+PYTHONPATH=packages/case-api/src python3 -m case_api
 ```
 
-Listens on `http://127.0.0.1:8787`. Override with `CASE_API_HOST` and `CASE_API_PORT`.
+`python -m case_api` is the same entry when `python` is Python 3.10+. Listens on `http://127.0.0.1:8787`. Override with `CASE_API_HOST` and `CASE_API_PORT`.
 
 OpenAPI: `openapi/case-api-v0.yaml`.
 
