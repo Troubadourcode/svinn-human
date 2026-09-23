@@ -1,0 +1,165 @@
+openapi: 3.0.3
+info:
+  title: SVINN IRI Case API (Platform)
+  version: 0.0.2
+  description: >
+    Platform Case states from case_sm.py. NOT jsm.status_map keys.
+    hold_expired → DENIED. JSM authorized still requires Case release + ledger
+    before Entra execute. Aligns schemas frozen ~v0.3.1.
+servers:
+  - url: http://127.0.0.1:8787
+    description: local workspace stub
+paths:
+  /healthz:
+    get:
+      operationId: healthz
+      responses:
+        '200':
+          description: OK
+  /v1/tenants/{tenant_id}/action-requests:
+    post:
+      operationId: createCase
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCaseRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Case'
+  /v1/tenants/{tenant_id}/action-requests/{case_id}:
+    get:
+      operationId: getCase
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/CaseId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Case'
+        '404':
+          description: Not found
+  /v1/tenants/{tenant_id}/action-requests/{case_id}/release:
+    post:
+      operationId: releaseCase
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/CaseId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReleaseRequest'
+      responses:
+        '200':
+          description: Released to ACTION_PENDING
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Case'
+        '409':
+          description: Illegal transition / observe mode / missing ceiling
+  /v1/tenants/{tenant_id}/action-requests/{case_id}/ledger:
+    get:
+      operationId: getLedger
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/CaseId'
+      responses:
+        '200':
+          description: Append-only ledger view
+components:
+  parameters:
+    TenantId:
+      name: tenant_id
+      in: path
+      required: true
+      schema: { type: string }
+    CaseId:
+      name: case_id
+      in: path
+      required: true
+      schema: { type: string }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string }
+  schemas:
+    CaseStatus:
+      type: string
+      description: Platform Case namespace — authoritative (case_sm.py)
+      enum:
+        - RECEIVED
+        - REJECTED
+        - VERIFIED
+        - ENRICHING
+        - ASSESSED
+        - OBSERVE
+        - CHALLENGE_PENDING
+        - HOLD_PENDING
+        - DENIED
+        - ACTION_PENDING
+        - ACTION_SUBMITTED
+        - ACTION_SUCCEEDED
+        - ACTION_FAILED
+        - ACTION_UNKNOWN
+        - RECONCILED
+        - BREAK_GLASS
+    CreateCaseRequest:
+      type: object
+      required: [protected_action]
+      properties:
+        action_request_id: { type: string }
+        protected_action: { type: string, enum: [mfa_reset, mfa_recovery] }
+        mode: { type: string, enum: [observe, hold], default: hold }
+        path_class: { type: string, default: jsm_primary }
+        jsm_ticket_ref:
+          type: object
+          additionalProperties: true
+        subject:
+          type: object
+          additionalProperties: true
+    ReleaseRequest:
+      type: object
+      properties:
+        action_ceiling_use:
+          type: array
+          items: { type: string }
+          default: [mfa_methods_reset]
+        approver_id: { type: string }
+    Case:
+      type: object
+      required: [case_id, action_request_id, tenant_id, state]
+      properties:
+        case_id: { type: string }
+        action_request_id: { type: string }
+        tenant_id: { type: string }
+        state:
+          $ref: '#/components/schemas/CaseStatus'
+        mode: { type: string }
+        path_class: { type: string }
+        decision_output: { type: string, nullable: true }
+        action_ceiling:
+          type: array
+          items: { type: string }
+        jsm_ticket_ref:
+          type: object
+          additionalProperties: true
+        jsm_status_key:
+          type: string
+          nullable: true
+          description: SoR evidence only — not a Case enum
+        ledger_receipt_id: { type: string, nullable: true }
