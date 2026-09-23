@@ -1,21 +1,31 @@
 openapi: 3.0.3
 info:
   title: SVINN IRI Case API (Platform)
-  version: 0.0.2
+  version: 0.0.3
   description: >
-    Platform Case states from case_sm.py. NOT jsm.status_map keys.
+    Platform CaseStatus from packages/case-api/src/case_api/case_sm.py.
+    NOT jsm.status_map keys and NOT CTO shorthand
+    (HOLD, CHALLENGE, RELEASED, EXECUTING, AUTHORIZED_PENDING_RELEASE,
+    OPEN, ACTION_READY, CLOSED).
     hold_expired → DENIED. JSM authorized still requires Case release + ledger
-    before Entra execute. Aligns schemas frozen ~v0.3.1.
+    before any future Entra execute. This document describes the lab/observe
+    stub: real_gate is false. Release records intent (HOLD_PENDING →
+    ACTION_PENDING). The stub does not submit or execute MFA reset and does
+    not call Entra or JSM.
 servers:
   - url: http://127.0.0.1:8787
-    description: local workspace stub
+    description: local observe stub (real_gate false)
 paths:
   /healthz:
     get:
       operationId: healthz
       responses:
         '200':
-          description: OK
+          description: OK — observe/lab stub (real_gate false)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
   /v1/tenants/{tenant_id}/action-requests:
     post:
       operationId: createCase
@@ -30,11 +40,13 @@ paths:
               $ref: '#/components/schemas/CreateCaseRequest'
       responses:
         '201':
-          description: Created
+          description: Created. mode=hold demo stops at HOLD_PENDING. No executor.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Case'
+        '422':
+          description: Missing Idempotency-Key or invalid body
   /v1/tenants/{tenant_id}/action-requests/{case_id}:
     get:
       operationId: getCase
@@ -64,13 +76,17 @@ paths:
               $ref: '#/components/schemas/ReleaseRequest'
       responses:
         '200':
-          description: Released to ACTION_PENDING
+          description: >
+            Release intent recorded. Hold demo path moves to ACTION_PENDING.
+            Does not execute MFA reset (real_gate false).
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Case'
         '409':
-          description: Illegal transition / observe mode / missing ceiling
+          description: Illegal transition / observe mode / missing ceiling / hold_expired
+        '422':
+          description: Missing Idempotency-Key
   /v1/tenants/{tenant_id}/action-requests/{case_id}/ledger:
     get:
       operationId: getLedger
@@ -79,7 +95,13 @@ paths:
         - $ref: '#/components/parameters/CaseId'
       responses:
         '200':
-          description: Append-only ledger view
+          description: Append-only ledger view (intent and observe events only)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LedgerView'
+        '404':
+          description: Not found
 components:
   parameters:
     TenantId:
@@ -100,7 +122,10 @@ components:
   schemas:
     CaseStatus:
       type: string
-      description: Platform Case namespace — authoritative (case_sm.py)
+      description: >
+        Platform Case namespace — authoritative (case_sm.py).
+        Verified against the handoff state machine. Do not substitute
+        OPEN, ACTION_READY, CLOSED, HOLD, or AUTHORIZED_PENDING_RELEASE.
       enum:
         - RECEIVED
         - REJECTED
@@ -163,3 +188,42 @@ components:
           nullable: true
           description: SoR evidence only — not a Case enum
         ledger_receipt_id: { type: string, nullable: true }
+        real_gate:
+          type: boolean
+          enum: [false]
+          description: Observe stub never arms the Action plane.
+    Health:
+      type: object
+      required: [ok, service, real_gate]
+      properties:
+        ok: { type: boolean }
+        service: { type: string }
+        version: { type: string }
+        real_gate: { type: boolean, enum: [false] }
+        mode: { type: string, enum: [observe] }
+        note: { type: string }
+    LedgerEntry:
+      type: object
+      required: [receipt_id, kind, real_gate]
+      properties:
+        receipt_id: { type: string }
+        tenant_id: { type: string }
+        action_request_id: { type: string }
+        case_id: { type: string }
+        kind: { type: string }
+        idempotency_key: { type: string }
+        at: { type: string }
+        real_gate: { type: boolean, enum: [false] }
+        payload:
+          type: object
+          additionalProperties: true
+    LedgerView:
+      type: object
+      required: [case_id, ledger, real_gate]
+      properties:
+        case_id: { type: string }
+        real_gate: { type: boolean, enum: [false] }
+        ledger:
+          type: array
+          items:
+            $ref: '#/components/schemas/LedgerEntry'
