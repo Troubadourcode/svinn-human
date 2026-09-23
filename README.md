@@ -15,7 +15,7 @@ Evidence → Context → Decision → Challenge → Action → Ledger (+ Governa
 
 | Path | Owner | Notes |
 |---|---|---|
-| `packages/case-api/` | **Platform** | Case API skeleton (Platform Case states ≠ `jsm.status_map`) |
+| `packages/case-api/` | **Platform** | Case API observe stub (`real_gate` false; Platform Case states ≠ `jsm.status_map`) |
 | `contracts/` | Platform + Integrations | Correlation / enricher contracts |
 | `docs/iri/` | CTO | Architecture / authority / channel waves |
 
